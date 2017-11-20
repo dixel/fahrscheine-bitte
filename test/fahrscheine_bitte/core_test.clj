@@ -83,13 +83,13 @@
 (def wrapped-ring-handler1 (-> ring-handler ((make-wrap-oauth2-token-verifier resolve-token-valid))))
 (def wrapped-ring-handler2 (-> ring-handler ((make-wrap-oauth2-token-verifier resolve-token-invalid))))
 (def wrapped-ring-handler3 (-> ring-handler ((make-wrap-oauth2-token-verifier resolve-token-error))))
-
-(defn error-logger [message]
-  (println "Access denied:" message))
-
 (def wrapped-ring-handler4 (-> ring-handler
                                ((make-wrap-oauth2-token-verifier resolve-token-valid))
                                (wrap-log-auth-error error-logger)))
+(def wrapped-ring-handler5 (-> ring-handler ((make-wrap-oauth2-token-verifier resolve-token-valid ["/health" "/index.php"]))))
+
+(defn error-logger [message]
+  (println "Access denied:" message))
 
 (deftest ring-middleware
 
@@ -123,6 +123,21 @@
       (is (thrown-with-msg? Exception #"returned status" ((wrap-log-auth-error wrapped-ring-handler3 logger-fn) {:headers {"authorization" "Bearer footoken"}})))
       (is (= ["no access token given" "invalid access token"] @messages))))
 
+  (testing "When uri in the whitelist"
+    (given (wrapped-ring-handler5 {:uri "/health"})
+      :status := 200
+      ::v/reason-code := nil)
+    (given (wrapped-ring-handler5 {:uri "/index.php"})
+      :status := 200
+      ::v/reason-code := nil)
+    (given (wrapped-ring-handler5 {:headers {"authorization" "Bearer footoken"}
+                                   :uri "/health"})
+      :status := 200
+      ::v/reason-code := nil))
+
+  (testing "When uri is not in the whitelist"
+    (given (wrapped-ring-handler5 {:uri "/index.php?query=DROP%20TABLE%20users"})
+      :status := 401
+      ::v/reason-code :token-missing))
+
   )
-
-

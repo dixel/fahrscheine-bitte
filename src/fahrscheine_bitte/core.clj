@@ -63,16 +63,18 @@
       {:status 401 ::reason-code :token-missing})))
 
 (defn make-wrap-oauth2-token-verifier
-  "Returns a swagger1st security handler that checks OAuth 2.0 tokens.
+  "Returns a ring handler that checks OAuth 2.0 tokens.
    * access-token-resolver-fn takes a token and returns tokeninfo: https://tools.ietf.org/html/rfc7662#section-2.2"
-  [access-token-resolver-fn]
+  [access-token-resolver-fn & [uri-whitelist & _]]
   (fn [next-handler]
     (fn [request]
-      (if-let [access-token (extract-access-token request)]
-        (if-let [tokeninfo (access-token-resolver-fn access-token)]
-          (next-handler (assoc request :tokeninfo tokeninfo))
-          {:status 401 ::reason-code :token-invalid})
-        {:status 401 ::reason-code :token-missing}))))
+      (let [uri-wl (into #{} uri-whitelist)
+            access-token (extract-access-token request)]
+        (condp (fn [pred _] pred) []
+          (uri-wl (:uri request)) (next-handler request)
+          (nil? access-token) {:status 401 ::reason-code :token-missing}
+          (access-token-resolver-fn access-token) :>> #(next-handler (assoc request :tokeninfo %))
+          :default {:status 401 ::reason-code :token-invalid})))))
 
 (def explain-reason-code
   {:scopes        "scopes not granted"

@@ -61,7 +61,8 @@ Additionally, we insert a middleware `oauth2/wrap-reason-logger` that will log a
   :start (if-let [tokeninfo-url (System/getenv "TOKENINFO_URL")]
            (let [access-token-resolver-fn (oauth2/make-cached-access-token-resolver tokeninfo-url {})]
              (log/info "Checking OAuth2 access tokens against %s." tokeninfo-url)
-             (oauth2/make-wrap-oauth2-token-verifier access-token-resolver-fn))
+             (oauth2/make-wrap-oauth2-token-verifier access-token-resolver-fn ["/health"]))
+             ; second argument maintains a whitelist of URI to bypass authentication ("/health" is unprotected in this scenario)
            (do
              (log/warn "No TOKENINFO_URL set; NOT ENFORCING SECURITY!")
              identity)))
